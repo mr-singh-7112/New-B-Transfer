@@ -1032,18 +1032,6 @@
             }, 5000);
         }
 
-        function downloadFile(filename, isLocked = false) {
-            if (isLocked) {
-                // Show password prompt for locked files
-                const password = prompt('This file is locked. Enter password to download:');
-                if (password) {
-                    window.open(`/download/${filename}?password=${encodeURIComponent(password)}`, '_blank');
-                }
-            } else {
-                window.open(`/download/${filename}`, '_blank');
-            }
-        }
-
         function loadFileList() {
             fetch('/files')
                 .then(response => response.json())
@@ -1079,16 +1067,12 @@
                                 <div class="file-size">📊 ${formatFileSize(file.size)}</div>
                             </div>
                             <div class="file-actions">
-                                ${file.is_locked ? `
-                                    <button onclick="downloadFile('${file.name}', true)" class="btn btn-primary">
-                                        🔑 Download (Locked)
-                                    </button>
-                                ` : `
+                                ${!file.is_locked ? `
                                     <a href="/download/${encodeURIComponent(file.name)}" 
                                        class="btn btn-primary" download>
                                         💾 Download
                                     </a>
-                                `}
+                                ` : ''}
                                 ${file.is_owner ? `
                                     ${file.is_locked ? `
                                         <button onclick="unlockFile('${file.name}')" class="btn btn-warning">
