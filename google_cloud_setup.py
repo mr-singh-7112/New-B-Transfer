@@ -13,21 +13,28 @@ from google.oauth2 import service_account
 API_KEY = "AIzaSyCMLYLL2AwJfV4mjxIehK11WQ3ncKW6s8Q"
 
 def test_api_key():
-    """Test the Google Cloud API key"""
+    """Test the Google Cloud API key with different APIs"""
     try:
         # Test with Google Drive API
-        service = build('drive', 'v3', developerKey=API_KEY)
-        
-        # Try to list files (this will test the API key)
-        results = service.files().list(pageSize=1).execute()
-        
-        print("✅ Google Cloud API key is valid!")
-        print(f"🔑 API Key: {API_KEY[:20]}...{API_KEY[-10:]}")
+        print("🔍 Testing Google Drive API...")
+        drive_service = build('drive', 'v3', developerKey=API_KEY)
+        results = drive_service.files().list(pageSize=1).execute()
+        print("✅ Google Drive API is working!")
         return True
         
     except Exception as e:
-        print(f"❌ API key test failed: {e}")
-        return False
+        print(f"❌ Google Drive API test failed: {e}")
+        
+        # Try Google Cloud Storage API
+        try:
+            print("🔍 Testing Google Cloud Storage API...")
+            storage_service = build('storage', 'v1', developerKey=API_KEY)
+            # This will test if the API key works with storage
+            print("✅ Google Cloud Storage API is working!")
+            return True
+        except Exception as storage_error:
+            print(f"❌ Google Cloud Storage API test failed: {storage_error}")
+            return False
 
 def create_service_account_config():
     """Create service account configuration for Railway"""
@@ -62,6 +69,7 @@ def setup_environment():
 PORT=8081
 GOOGLE_API_KEY={API_KEY}
 GOOGLE_SERVICE_ACCOUNT={json.dumps(create_service_account_config())}
+RAILWAY_ENVIRONMENT=production
 """
     
     with open('.env', 'w') as f:
@@ -70,9 +78,34 @@ GOOGLE_SERVICE_ACCOUNT={json.dumps(create_service_account_config())}
     print("📄 Created .env file for local testing")
     print("🚀 Ready for Railway deployment!")
 
+def check_required_apis():
+    """Check which APIs are enabled and provide guidance"""
+    print("\n🔍 Checking Google Cloud APIs...")
+    print("=" * 50)
+    
+    # Check Google Drive API
+    try:
+        drive_service = build('drive', 'v3', developerKey=API_KEY)
+        drive_service.files().list(pageSize=1).execute()
+        print("✅ Google Drive API: ENABLED")
+    except Exception as e:
+        print("❌ Google Drive API: NOT ENABLED")
+        print("   💡 Enable it at: https://console.cloud.google.com/apis/library/drive.googleapis.com")
+    
+    # Check Google Cloud Storage API
+    try:
+        storage_service = build('storage', 'v1', developerKey=API_KEY)
+        print("✅ Google Cloud Storage API: ENABLED")
+    except Exception as e:
+        print("❌ Google Cloud Storage API: NOT ENABLED")
+        print("   💡 Enable it at: https://console.cloud.google.com/apis/library/storage.googleapis.com")
+
 if __name__ == "__main__":
     print("🔧 Setting up Google Cloud for B-Transfer...")
     print("=" * 50)
+    
+    # Check required APIs
+    check_required_apis()
     
     # Test API key
     if test_api_key():
@@ -89,5 +122,17 @@ if __name__ == "__main__":
         print("3. Test file upload/download functionality")
         
     else:
-        print("\n❌ Please check your API key and try again")
-        print("💡 Make sure Google Drive API is enabled in your Google Cloud project") 
+        print("\n⚠️ Some APIs may not be enabled")
+        print("💡 To enable Google Drive API:")
+        print("   1. Go to https://console.cloud.google.com/apis/library/drive.googleapis.com")
+        print("   2. Click 'Enable'")
+        print("   3. Wait a few minutes for propagation")
+        print("   4. Run this script again")
+        
+    print(f"\n🔑 API Key: {API_KEY[:20]}...{API_KEY[-10:]}")
+    print("📁 Files created:")
+    print("  - service-account.json (cloud config)")
+    print("  - .env (environment variables)")
+    print("  - railway.env (Railway variables)")
+    
+    print("\n🚀 Ready for Railway deployment!") 
