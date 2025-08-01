@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import hashes, hmac
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
+from cloud_storage import get_cloud_storage
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)  # Secure session key
@@ -33,7 +34,8 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 # Security settings
 MAX_UPLOADS_PER_SESSION = 50
-MAX_FILE_SIZE_PER_UPLOAD = 10 * 1024 * 1024 * 1024  # 10GB
+MAX_FILE_SIZE_PER_UPLOAD = 5 * 1024 * 1024 * 1024  # 5GB
+CLOUD_STORAGE_THRESHOLD = 100 * 1024 * 1024  # 100MB - use cloud for files > 100MB
 ALLOWED_EXTENSIONS = {
     'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'mp4', 'avi', 'mov', 'mp3', 'wav',
     'zip', 'rar', '7z', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'
@@ -229,12 +231,45 @@ def upload_file():
             filename = f"{name}_{counter}{ext}"
             counter += 1
         
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file_size = 0
+        storage_type = 'local'
+        cloud_file_id = None
         
-        # Save file directly
-        file.save(filepath)
-        
-        file_size = os.path.getsize(filepath)
+        # Check if file should be stored in cloud
+        if file.content_length and file.content_length > CLOUD_STORAGE_THRESHOLD:
+            # Use cloud storage for large files
+            cloud_storage = get_cloud_storage()
+            if cloud_storage:
+                # Save to temp file first
+                temp_path = os.path.join(UPLOAD_FOLDER, f"temp_{filename}")
+                file.save(temp_path)
+                
+                # Upload to cloud
+                cloud_result = cloud_storage.upload_file(temp_path, filename)
+                if cloud_result:
+                    file_size = cloud_result['size']
+                    cloud_file_id = cloud_result['id']
+                    storage_type = 'cloud'
+                    # Remove temp file
+                    os.remove(temp_path)
+                else:
+                    # Fallback to local storage
+                    filepath = os.path.join(UPLOAD_FOLDER, filename)
+                    os.rename(temp_path, filepath)
+                    file_size = os.path.getsize(filepath)
+                    storage_type = 'local'
+            else:
+                # Cloud storage not available, use local
+                filepath = os.path.join(UPLOAD_FOLDER, filename)
+                file.save(filepath)
+                file_size = os.path.getsize(filepath)
+                storage_type = 'local'
+        else:
+            # Use local storage for small files
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(filepath)
+            file_size = os.path.getsize(filepath)
+            storage_type = 'local'
         
         # Save metadata
         metadata = {
@@ -243,7 +278,9 @@ def upload_file():
             'upload_time': datetime.now().isoformat(),
             'session_id': session['session_id'],
             'is_locked': False,
-            'password_hash': None
+            'password_hash': None,
+            'storage_type': storage_type,
+            'cloud_file_id': cloud_file_id
         }
         save_file_metadata(filename, metadata)
         
@@ -407,19 +444,64 @@ def list_files():
 @app.route('/download/<filename>')
 def download_file(filename):
     try:
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        # Load metadata
+        metadata = load_file_metadata(filename)
+        if not metadata:
             log_security_event('DOWNLOAD_ERROR', f'File not found: {filename}')
             return jsonify({'error': 'File not found'}), 404
         
         # Check if file is locked
-        metadata = load_file_metadata(filename)
-        if metadata and metadata.get('is_locked'):
+        if metadata.get('is_locked'):
             return jsonify({'error': 'File is locked. Please unlock it first.'}), 403
         
-        log_security_event('DOWNLOAD_SUCCESS', filename)
-        print(f"📥 File downloaded: {filename}")
-        return send_file(filepath, as_attachment=True, download_name=filename)
+        storage_type = metadata.get('storage_type', 'local')
+        
+        if storage_type == 'cloud':
+            # Download from cloud storage
+            cloud_storage = get_cloud_storage()
+            if not cloud_storage:
+                return jsonify({'error': 'Cloud storage not available'}), 500
+            
+            cloud_file_id = metadata.get('cloud_file_id')
+            if not cloud_file_id:
+                return jsonify({'error': 'Cloud file ID not found'}), 404
+            
+            # Download from cloud
+            cloud_result = cloud_storage.download_file(cloud_file_id)
+            if not cloud_result:
+                return jsonify({'error': 'Failed to download from cloud'}), 500
+            
+            # Create temporary file
+            temp_path = os.path.join(UPLOAD_FOLDER, f"temp_download_{filename}")
+            with open(temp_path, 'wb') as f:
+                f.write(cloud_result['content'])
+            
+            log_security_event('DOWNLOAD_SUCCESS', f'{filename} (cloud)')
+            print(f"📥 File downloaded from cloud: {filename}")
+            
+            # Return file and clean up after sending
+            response = send_file(temp_path, as_attachment=True, download_name=filename)
+            
+            # Clean up temp file after response
+            def cleanup():
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
+            
+            response.call_on_close(cleanup)
+            return response
+            
+        else:
+            # Local file download
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            if not os.path.exists(filepath) or not os.path.isfile(filepath):
+                log_security_event('DOWNLOAD_ERROR', f'File not found: {filename}')
+                return jsonify({'error': 'File not found'}), 404
+            
+            log_security_event('DOWNLOAD_SUCCESS', filename)
+            print(f"📥 File downloaded: {filename}")
+            return send_file(filepath, as_attachment=True, download_name=filename)
         
     except Exception as e:
         log_security_event('DOWNLOAD_ERROR', f'Exception: {str(e)}')
@@ -460,9 +542,24 @@ def delete_file(filename):
                 log_security_event('DELETE_ERROR', f'Wrong password for locked file: {filename}')
                 return jsonify({'error': 'Incorrect password'}), 401
         
-        os.remove(filepath)
+        # Delete file based on storage type
+        storage_type = metadata.get('storage_type', 'local')
+        
+        if storage_type == 'cloud':
+            # Delete from cloud storage
+            cloud_storage = get_cloud_storage()
+            if cloud_storage:
+                cloud_file_id = metadata.get('cloud_file_id')
+                if cloud_file_id:
+                    cloud_storage.delete_file(cloud_file_id)
+        else:
+            # Delete local file
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        
         # Remove metadata file
-        meta_file = f"{filepath}.meta"
+        meta_file = os.path.join(UPLOAD_FOLDER, f"{filename}.meta")
         if os.path.exists(meta_file):
             os.remove(meta_file)
         
@@ -520,8 +617,9 @@ if __name__ == '__main__':
     print(f"📱 Access from your phone: http://{local_ip}:{port}")
     print(f"💻 Access from this computer: http://localhost:{port}")
     print("=" * 60)
-    print("📁 Files saved directly in 'uploads' folder")
-    print("🔄 Server supports up to 10GB file transfers")
+    print("📁 Files saved in 'uploads' folder and Google Drive")
+    print("🔄 Server supports up to 5GB file transfers")
+    print("☁️ Large files (>100MB) stored in Google Drive")
     print("🔐 Enhanced security with rate limiting")
     print("🔒 Military-grade file locking with AES-256")
     print("🕐 Auto-delete after 24 hours")
