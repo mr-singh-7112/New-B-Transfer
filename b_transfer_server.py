@@ -607,24 +607,47 @@ if __name__ == '__main__':
             return "127.0.0.1"
     
     port = int(os.environ.get('PORT', 8081))
-    local_ip = get_local_ip()
     
-    print("🚀 B-Transfer Server Starting...")
-    print("=" * 60)
-    print("Copyright (c) 2025 Balsim Technologies. All rights reserved.")
-    print("Proprietary and confidential software.")
-    print("=" * 60)
-    print(f"📱 Access from your phone: http://{local_ip}:{port}")
-    print(f"💻 Access from this computer: http://localhost:{port}")
-    print("=" * 60)
-    print("📁 Files saved in 'uploads' folder and Google Drive")
-    print("🔄 Server supports up to 5GB file transfers")
-    print("☁️ Large files (>100MB) stored in Google Drive")
-    print("🔐 Enhanced security with rate limiting")
-    print("🔒 Military-grade file locking with AES-256")
-    print("🕐 Auto-delete after 24 hours")
-    print("=" * 60)
-    print("Press Ctrl+C to stop the server")
-    print("")
-    
-    app.run(host='0.0.0.0', port=port, threaded=True, debug=False) 
+    # Check if running on Railway
+    if os.environ.get('RAILWAY_ENVIRONMENT') == 'production':
+        print("🚂 B-Transfer Server Starting on Railway...")
+        print("=" * 60)
+        print("Copyright (c) 2025 Balsim Technologies. All rights reserved.")
+        print("Proprietary and confidential software.")
+        print("=" * 60)
+        print("☁️ Cloud deployment with Google Drive integration")
+        print("🔄 Server supports up to 5GB file transfers")
+        print("🔐 Enhanced security with rate limiting")
+        print("🔒 Military-grade file locking with AES-256")
+        print("🕐 Auto-delete after 24 hours")
+        print("=" * 60)
+        print("Press Ctrl+C to stop the server")
+        print("")
+        
+        # Railway production settings
+        app.config['PREFERRED_URL_SCHEME'] = 'https'
+        app.run(host='0.0.0.0', port=port, threaded=True, debug=False)
+        
+    else:
+        # Local development
+        local_ip = get_local_ip()
+        
+        print("🚀 B-Transfer Server Starting...")
+        print("=" * 60)
+        print("Copyright (c) 2025 Balsim Technologies. All rights reserved.")
+        print("Proprietary and confidential software.")
+        print("=" * 60)
+        print(f"📱 Access from your phone: http://{local_ip}:{port}")
+        print(f"💻 Access from this computer: http://localhost:{port}")
+        print("=" * 60)
+        print("📁 Files saved in 'uploads' folder and Google Drive")
+        print("🔄 Server supports up to 5GB file transfers")
+        print("☁️ Large files (>100MB) stored in Google Drive")
+        print("🔐 Enhanced security with rate limiting")
+        print("🔒 Military-grade file locking with AES-256")
+        print("🕐 Auto-delete after 24 hours")
+        print("=" * 60)
+        print("Press Ctrl+C to stop the server")
+        print("")
+        
+        app.run(host='0.0.0.0', port=port, threaded=True, debug=False) 

@@ -25,50 +25,66 @@ class CloudStorage:
     
     def _authenticate(self):
         """Authenticate with Google Drive API"""
-        creds = None
-        
-        # Load existing credentials
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
-                creds = pickle.load(token)
-        
-        # If no valid credentials, get new ones
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                # For Railway deployment, use service account
-                if os.path.exists('service-account.json'):
-                    from google.oauth2 import service_account
-                    creds = service_account.Credentials.from_service_account_file(
-                        'service-account.json', scopes=SCOPES)
-                elif os.environ.get('GOOGLE_SERVICE_ACCOUNT'):
-                    # Railway environment variable
-                    import json
-                    from google.oauth2 import service_account
-                    service_account_info = json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT'])
-                    creds = service_account.Credentials.from_service_account_info(
-                        service_account_info, scopes=SCOPES)
-                else:
-                    # Fallback to local development
-                    if os.path.exists('credentials.json'):
-                        flow = InstalledAppFlow.from_client_secrets_file(
-                            'credentials.json', SCOPES)
-                        creds = flow.run_local_server(port=0)
-                    else:
-                        print("⚠️ No Google Cloud credentials found")
-                        return None
+        try:
+            # Try API key first (for public access)
+            api_key = os.environ.get('GOOGLE_API_KEY')
+            if api_key:
+                self.service = build('drive', 'v3', developerKey=api_key)
+                print("🔑 Using Google Cloud API key authentication")
+                self._ensure_folder()
+                return
             
-            # Save credentials
-            with open('token.pickle', 'wb') as token:
-                pickle.dump(creds, token)
-        
-        self.service = build('drive', 'v3', credentials=creds)
-        self._ensure_folder()
+            # Try service account (for private access)
+            creds = None
+            
+            # Load existing credentials
+            if os.path.exists('token.pickle'):
+                with open('token.pickle', 'rb') as token:
+                    creds = pickle.load(token)
+            
+            # If no valid credentials, get new ones
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    # For Railway deployment, use service account
+                    if os.path.exists('service-account.json'):
+                        from google.oauth2 import service_account
+                        creds = service_account.Credentials.from_service_account_file(
+                            'service-account.json', scopes=SCOPES)
+                    elif os.environ.get('GOOGLE_SERVICE_ACCOUNT'):
+                        # Railway environment variable
+                        import json
+                        from google.oauth2 import service_account
+                        service_account_info = json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT'])
+                        creds = service_account.Credentials.from_service_account_info(
+                            service_account_info, scopes=SCOPES)
+                    else:
+                        # Fallback to local development
+                        if os.path.exists('credentials.json'):
+                            flow = InstalledAppFlow.from_client_secrets_file(
+                                'credentials.json', SCOPES)
+                            creds = flow.run_local_server(port=0)
+                        else:
+                            print("⚠️ No Google Cloud credentials found")
+                            return None
+                
+                # Save credentials
+                with open('token.pickle', 'wb') as token:
+                    pickle.dump(creds, token)
+            
+            self.service = build('drive', 'v3', credentials=creds)
+            print("🔐 Using Google Cloud service account authentication")
+            self._ensure_folder()
+            
+        except Exception as e:
+            print(f"❌ Google Cloud authentication failed: {e}")
+            self.service = None
     
     def _ensure_folder(self):
         """Ensure B-Transfer folder exists in Google Drive"""
         try:
+            # For API key access, we'll use a public folder or create one
             # Search for existing folder
             results = self.service.files().list(
                 q="name='B-Transfer' and mimeType='application/vnd.google-apps.folder' and trashed=false",
@@ -77,16 +93,23 @@ class CloudStorage:
             
             if results['files']:
                 self.folder_id = results['files'][0]['id']
+                print(f"📁 Using existing B-Transfer folder: {self.folder_id}")
             else:
-                # Create new folder
-                folder_metadata = {
-                    'name': 'B-Transfer',
-                    'mimeType': 'application/vnd.google-apps.folder'
-                }
-                folder = self.service.files().create(
-                    body=folder_metadata, fields='id'
-                ).execute()
-                self.folder_id = folder.get('id')
+                # Try to create new folder (may not work with API key)
+                try:
+                    folder_metadata = {
+                        'name': 'B-Transfer',
+                        'mimeType': 'application/vnd.google-apps.folder'
+                    }
+                    folder = self.service.files().create(
+                        body=folder_metadata, fields='id'
+                    ).execute()
+                    self.folder_id = folder.get('id')
+                    print(f"📁 Created new B-Transfer folder: {self.folder_id}")
+                except Exception as create_error:
+                    print(f"⚠️ Could not create folder with API key: {create_error}")
+                    print("📁 Will use root folder for file storage")
+                    self.folder_id = None
                 
         except Exception as e:
             print(f"⚠️ Cloud storage initialization failed: {e}")
@@ -95,14 +118,17 @@ class CloudStorage:
     def upload_file(self, file_path, filename, file_data=None):
         """Upload file to Google Drive"""
         try:
-            if not self.service or not self.folder_id:
+            if not self.service:
                 return None
             
             # Prepare file metadata
             file_metadata = {
-                'name': filename,
-                'parents': [self.folder_id]
+                'name': filename
             }
+            
+            # Add parent folder if available
+            if self.folder_id:
+                file_metadata['parents'] = [self.folder_id]
             
             # Upload file
             if file_data:
@@ -124,6 +150,7 @@ class CloudStorage:
                 fields='id,name,size'
             ).execute()
             
+            print(f"☁️ File uploaded to cloud: {filename}")
             return {
                 'id': file.get('id'),
                 'name': file.get('name'),
