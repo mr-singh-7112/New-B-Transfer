@@ -4,22 +4,4 @@ cryptography==41.0.3
 google-auth==2.23.4
 google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.1.1
-google-api-python-client==2.108.0
-gunicorn==21.2.0
-
-# Additional dependencies for enhanced functionality
-# Note: These are built-in Python modules, but listed for documentation
-# - gzip (built-in)
-# - sqlite3 (built-in)
-# - threading (built-in)
-# - hashlib (built-in)
-# - base64 (built-in)
-# - secrets (built-in)
-# - uuid (built-in)
-# - datetime (built-in)
-# - os (built-in)
-# - json (built-in)
-# - socket (built-in)
-# - time (built-in)
-# - shutil (built-in)
-# - tempfile (built-in) 
+google-api-python-client==2.108.0 

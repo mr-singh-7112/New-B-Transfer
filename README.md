@@ -31,7 +31,18 @@ B-Transfer is a high-performance, secure file transfer solution designed for pro
 - **Professional UI**: Clean, modern design
 - **Auto-cleanup**: Files automatically deleted after 24 hours
 
-## 🛠️ Installation
+## 🚀 Quick Deploy on Vercel
+
+### One-Click Deployment
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/mr-singh-7112/New-B-Transfer)
+
+### Manual Deployment
+1. **Fork this repository**
+2. **Go to [Vercel](https://vercel.com/)**
+3. **Import your forked repository**
+4. **Deploy** - Vercel will automatically detect and deploy
+
+## 🛠️ Local Development
 
 ### Prerequisites
 - Python 3.7+
@@ -55,7 +66,9 @@ B-Transfer is a high-performance, secure file transfer solution designed for pro
 B-Transfer/
 ├── b_transfer_server.py    # Main server application
 ├── b_transfer_ui.html     # Professional web interface
+├── cloud_storage.py       # Google Cloud Storage integration
 ├── requirements.txt        # Python dependencies
+├── vercel.json           # Vercel deployment configuration
 ├── uploads/               # File storage directory
 ├── security.log          # Security event logs
 └── README.md             # This file
@@ -168,4 +181,4 @@ For technical support or licensing inquiries, contact Balsim Technologies.
 
 ---
 
-**B-Transfer v2.0.0** | **Balsim Technologies** | **Copyright (c) 2025** 
+**B-Transfer v2.1.0** | **Balsim Technologies** | **Copyright (c) 2025** 

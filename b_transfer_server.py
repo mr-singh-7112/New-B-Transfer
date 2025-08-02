@@ -608,8 +608,24 @@ if __name__ == '__main__':
     
     port = int(os.environ.get('PORT', 8081))
     
-    # Check if running on Railway
-    if os.environ.get('RAILWAY_ENVIRONMENT') == 'production':
+    # Check deployment environment
+    if os.environ.get('VERCEL') == '1':
+        print("⚡ B-Transfer Server Starting on Vercel...")
+        print("=" * 60)
+        print("Copyright (c) 2025 Balsim Technologies. All rights reserved.")
+        print("Proprietary and confidential software.")
+        print("=" * 60)
+        print("☁️ Vercel deployment with serverless functions")
+        print("🔄 Server supports up to 5GB file transfers")
+        print("🔐 Enhanced security with rate limiting")
+        print("🔒 Military-grade file locking with AES-256")
+        print("🕐 Auto-delete after 24 hours")
+        print("=" * 60)
+        
+        # Vercel production settings
+        app.config['PREFERRED_URL_SCHEME'] = 'https'
+        
+    elif os.environ.get('RAILWAY_ENVIRONMENT') == 'production':
         print("🚂 B-Transfer Server Starting on Railway...")
         print("=" * 60)
         print("Copyright (c) 2025 Balsim Technologies. All rights reserved.")
