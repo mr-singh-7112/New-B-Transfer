@@ -12,11 +12,6 @@
       "dest": "/b_transfer_server.py"
     }
   ],
-  "functions": {
-    "b_transfer_server.py": {
-      "maxDuration": 30
-    }
-  },
   "env": {
     "FLASK_ENV": "production"
   }
