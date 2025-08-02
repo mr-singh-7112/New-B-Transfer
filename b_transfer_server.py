@@ -199,6 +199,16 @@ def security_check():
 def index():
     return render_template_string(open('b_transfer_ui.html').read())
 
+@app.route('/api/test')
+def api_test():
+    return jsonify({
+        'status': 'success',
+        'message': 'B-Transfer Flask API is working!',
+        'service': 'B-Transfer by Balsim Technologies',
+        'version': '2.1.0',
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     try:
