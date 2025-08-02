@@ -197,7 +197,22 @@ def security_check():
 
 @app.route('/')
 def index():
-    return render_template_string(open('b_transfer_ui.html').read())
+    return jsonify({
+        'status': 'success',
+        'message': 'B-Transfer API is running!',
+        'service': 'B-Transfer by Balsim Technologies',
+        'version': '2.1.0',
+        'endpoints': {
+            'health': '/health',
+            'files': '/files',
+            'upload': '/upload (POST)',
+            'download': '/download/<filename>',
+            'delete': '/delete/<filename> (DELETE)',
+            'lock': '/lock/<filename> (POST)',
+            'unlock': '/unlock/<filename> (POST)'
+        },
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
 
 @app.route('/api/test')
 def api_test():
